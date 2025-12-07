@@ -10,21 +10,25 @@ import pages.DynamicContentPage;
 public class DynamicContentChangeTest extends BaseTest {
 
     @Test
-    public void testSpecialOfferNavigation() {
+    public void testDynamicContentLoading() {
         DynamicContentPage page = new DynamicContentPage(driver);
+        page.openPage();
 
-        String screen1 = "screens/test2_/step1_" + dtf.format(LocalDateTime.now()) + ".png";
-        takeScreenshot(screen1);
+        String beforePath = "screens/test3_/before_" + dtf.format(LocalDateTime.now());
+        takeScreenshot(beforePath);
+        String baselineSignature = page.captureThemeSignature();
 
-        page.clickSpecialButton();
+        page.openAccessibilityWidget();
+        String accessibilityPanelPath = "screens/test3_/accessibility_" + dtf.format(LocalDateTime.now());
+        takeScreenshot(accessibilityPanelPath);
+        page.selectDarkContrastOption();
+        String updatedSignature = page.waitForDarkContrast(baselineSignature);
 
-        page.waitForPageTitle();
+        String afterPath = "screens/test3_/after_" + dtf.format(LocalDateTime.now());
+        takeScreenshot(afterPath);
 
-        String pageTitle = page.getPageTitleText();
-        Assert.assertFalse(pageTitle.isEmpty(), "העמוד לא הציג כותרת לאחר לחיצה על הכפתור");
-
-        String screen2 = "screens/test2_/step2_" + dtf.format(LocalDateTime.now()) + ".png";
-        takeScreenshot(screen2);
+        Assert.assertNotEquals(updatedSignature, baselineSignature,
+                "Dark contrast toggle did not update the page theme");
     }
 
 }

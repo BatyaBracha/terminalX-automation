@@ -5,14 +5,16 @@ import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 
 import org.apache.commons.io.FileUtils;
+import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.OutputType;
+import org.openqa.selenium.PageLoadStrategy;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
-import org.testng.annotations.AfterClass;
+import org.openqa.selenium.support.ui.WebDriverWait;
 import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
 
 import io.github.bonigarcia.wdm.WebDriverManager;
 
@@ -20,12 +22,15 @@ public class BaseTest {
 
     protected WebDriver driver;
 
-    @BeforeClass
+    protected WebDriverWait wait;
+
+    @BeforeMethod(alwaysRun = true)
     public void setUp() {
         WebDriverManager.chromedriver().setup();
 
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--incognito");
+        options.setPageLoadStrategy(PageLoadStrategy.NORMAL);
         
         // הוסף proxy אם קיים
         String proxyHost = System.getenv("PROXY_HOST");
@@ -41,41 +46,69 @@ public class BaseTest {
         options.addArguments("--enable-automation=false");
         options.addArguments("--disable-blink-features=AutomationControlled");
         options.addArguments("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-
         driver = new ChromeDriver(options);
         driver.manage().window().maximize();
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+        wait = new WebDriverWait(driver, Duration.ofSeconds(20));
 
         driver.get("https://www.terminalx.com/");
+        waitForDocumentReady();
     }
 
-    @AfterClass
+    @AfterMethod(alwaysRun = true)
     public void tearDown() {
         if (driver != null) {
-            driver.quit();
-        }
-    }
-
-    @AfterMethod
-    public void cleanUp() {
-        try {
-            driver.manage().deleteAllCookies();
-        } catch (Exception e) {
-            // Ignore if window is closed
+            try {
+                driver.manage().deleteAllCookies();
+            } catch (Exception ignore) {}
+            try {
+                driver.quit();
+            } catch (Exception e) {
+                // Ignore exceptions during quit
+            }
+            driver = null;
         }
     }
 
     DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
-    public void takeScreenshot(String name) {
+    public String takeScreenshot(String name) {
         try {
-            File dir = new File("screens");
-            if (!dir.exists()) dir.mkdirs();
+            String normalized = name.endsWith(".png") ? name : name + ".png";
+            File destFile = new File(normalized);
+            File parent = destFile.getParentFile();
+            if (parent != null && !parent.exists()) {
+                parent.mkdirs();
+            }
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-            File destFile = new File(dir, name + ".png");
             FileUtils.copyFile(scrFile, destFile);
+            return destFile.getAbsolutePath();
         } catch (Exception e) {
             e.printStackTrace();
+            return "";
+        }
+    }
+
+    protected void waitForDocumentReady() {
+        if (driver == null) {
+            return;
+        }
+        try {
+            new WebDriverWait(driver, Duration.ofSeconds(30)).until(d -> {
+                try {
+                    return "complete".equals(((JavascriptExecutor) d).executeScript("return document.readyState"));
+                } catch (Exception e) {
+                    return false;
+                }
+            });
+        } catch (Exception ignore) {}
+    }
+
+    protected void safeSleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
         }
     }
 }
